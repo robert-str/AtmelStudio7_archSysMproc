@@ -10,14 +10,31 @@
 #include <avr/interrupt.h>
 
 volatile unsigned char val = 0, en=1, cmd;
+volatile unsigned char ADCValue;
 
 ISR(USART_RX_vect){
 	cmd = UDR0;
 }
 
+ISR(ADC_vect){
+	ADCValue = ADCH;
+
+}
 ISR(INT1_vect){
 	if(en)
 		PORTB ^= 0x01;
+}
+
+/*ISR(TIMER1_OVF_vect){ // normal mode
+	PORTB ^= 0x01;
+}
+*/
+ISR(TIMER1_COMPA_vect){ // CTC mode
+	PORTB ^= 0x01;
+}
+
+ISR(TIMER0_OVF_vect){ // PWM
+	OCR0A = ADCValue;
 }
 
 void USART_Init(void){
@@ -53,17 +70,47 @@ int main(void)
 	//unsigned char val=0, en=1;
 	unsigned char val2=0, lastvalue = 0;//, cmd=0;
 	unsigned int cnt = 0;
+	unsigned char sendADC = 0;
+	unsigned char lastADCValue=0;
+    unsigned char tempVal1;
+	
 	DDRB |= 0x2F;
 	PORTB |= 0x21;
 	
-	DDRD = 0;
+	DDRD = 0x40;
     
-	sei();
 	EICRA |= (1<<ISC10 | 1<<ISC11);
 	EIMSK |= 0x02;
 	
+	// ADC Init
+	ADMUX = (1<<REFS0) | (1<<ADLAR);
+	DIDR0 = (1<<ADC0D);
+	ADCSRB = 0;
+	ADCSRA = (1<<ADEN) | (1<<ADATE) | (1<<ADIE) | 0x07;
+	ADCSRA |= (1<<ADSC);
+	
+	//Timer1 Init - normal mode
+	/*TCCR1A = 0;
+	TCCR1B = (1<<CS11);
+	TIMSK1 = (1<<TOIE1);
+	*/
+	
+	//Timer1 Init - CTC mode
+	TCCR1A = (1<<COM1A0);
+	TCCR1B = (1<<WGM12) | (1<<CS11);
+	TIMSK1 = (1<<OCIE1A);
+	OCR1A = 0x8000;
+	
+	//Timer0 Init - PWM
+	TCCR0A = (1<<COM0A1) | (1<<WGM01) | (1<<WGM00);
+	TCCR0B = (1<<CS01) | (1<<CS00);
+	TIMSK0 = (1<<TOIE0);
+	OCR0A = 128;
+	
+	//USART Init
 	USART_Init();
 	
+	sei();
 	/* Replace with your application code */
     while (1) 
     {
@@ -82,10 +129,51 @@ int main(void)
 			case 'b':
 				PORTB ^= 0x04;
 				break;
+			case 'a':
+				sendADC = 1;
+				break;
+			case 'z':
+				sendADC = 0;
+				break;
+			case '+':
+				tempVal1 = TCCR1B & 0x07;
+				if(tempVal1 == 0x05)
+					tempVal1 = 1;
+				else
+					tempVal1++;
+				TCCR1B = (TCCR1B & 0xF8) | tempVal1;
+				//USART0_sendString("OK\r");
+				GTCCR = 0x01;
+				break;
+			case '-':
+				tempVal1 = TCCR1B & 0x07;
+				if(tempVal1 == 1)
+					tempVal1 = 0x05;
+				else
+					tempVal1--;
+					TCCR1B = (TCCR1B & 0xF8) | tempVal1;
+				//USART0_sendString("OK\r");
+				GTCCR = 0x01;
+			case ']':
+				if(OCR1A==0x8000)
+					OCR1A = 0x0080;
+				else
+					OCR1A = OCR1A<<1;
+				break;
+			case 'p':
+				USART0_send(TCNT1H);USART0_send(TCNT1L);
+			break;
+			
 			default:
 				break;
 			}
 			cmd=0;
+		}
+		
+		if(sendADC)
+			if( (ADCValue-lastADCValue)>=10 || (lastADCValue-ADCValue)>=10 ){
+				USART0_send(ADCValue);
+			lastADCValue = ADCValue;
 		}
 		
 		if((PIND & 0x10) != 0x10)
