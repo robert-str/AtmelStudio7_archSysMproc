@@ -21,18 +21,18 @@ ISR(ADC_vect){
 
 }
 ISR(INT1_vect){
-	if(en)
-		PORTB ^= 0x01;
+	//if(en)
+	//	PORTD ^= (1<<PD6);
+}
+/*
+ISR(TIMER1_OVF_vect){ // normal mode
+	PORTD ^= (1<<PD6);
 }
 
-/*ISR(TIMER1_OVF_vect){ // normal mode
-	PORTB ^= 0x01;
+ISR(TIMER1_COMPA_vect){ // CTC mode
+	PORTD ^= (1<<PD6);
 }
 */
-ISR(TIMER1_COMPA_vect){ // CTC mode
-	PORTB ^= 0x01;
-}
-
 ISR(TIMER0_OVF_vect){ // PWM
 	OCR0A = ADCValue;
 }
@@ -78,7 +78,7 @@ int main(void)
 	PORTB |= 0x21;
 	
 	DDRD = 0x40;
-    
+	
 	EICRA |= (1<<ISC10 | 1<<ISC11);
 	EIMSK |= 0x02;
 	
@@ -91,26 +91,27 @@ int main(void)
 	
 	//Timer1 Init - normal mode
 	/*TCCR1A = 0;
-	TCCR1B = (1<<CS11);
+	TCCR1B = (1<<CS11) | (1<<CS10) ;
 	TIMSK1 = (1<<TOIE1);
 	*/
 	
 	//Timer1 Init - CTC mode
 	TCCR1A = (1<<COM1A0);
-	TCCR1B = (1<<WGM12) | (1<<CS11);
-	TIMSK1 = (1<<OCIE1A);
-	OCR1A = 0x8000;
+	TCCR1B = (1<<WGM12) | (1<<CS12) | (1<<CS10);
+	TIMSK1 = 0;//(1<<OCIE1A);
+	OCR1A = 390;
 	
 	//Timer0 Init - PWM
-	TCCR0A = (1<<COM0A1) | (1<<WGM01) | (1<<WGM00);
+	TCCR0A = (1<<COM0A0) | (1<<COM0A1) | (1<<WGM01) | (1<<WGM00);
 	TCCR0B = (1<<CS01) | (1<<CS00);
 	TIMSK0 = (1<<TOIE0);
-	OCR0A = 128;
+	OCR0A = 100;
 	
 	//USART Init
 	USART_Init();
 	
 	sei();
+	while(1){};
 	/* Replace with your application code */
     while (1) 
     {
